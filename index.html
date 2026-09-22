@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MW Board Builder</title>
+<style>
+  :root{
+    font-family:Calibri,Arial,sans-serif;
+    color:#17212b;
+    background:#f3f6f8;
+    --green:#16784a;
+    --green-dark:#105f3b;
+    --green-soft:#eaf5ef;
+    --line:#d8e0e5;
+    --muted:#66737f;
+    --card:#ffffff;
+    --shadow:0 10px 30px rgba(26,43,55,.08);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(circle at 12% 0%, rgba(22,120,74,.08), transparent 28rem),
+      #f3f6f8;
+  }
+  .topbar{
+    height:5px;
+    background:linear-gradient(90deg,var(--green),#249764);
+  }
+  .app{max-width:1160px;margin:0 auto;padding:34px 22px 48px}
+  .hero{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;margin-bottom:20px}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:7px;
+    color:var(--green);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+    margin-bottom:7px
+  }
+  .eyebrow:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--green)}
+  h1{font-size:30px;line-height:1.1;margin:0 0 7px;letter-spacing:-.02em}
+  .sub{color:var(--muted);font-size:14px;margin:0}
+  .version{
+    color:#6e7b85;background:#fff;border:1px solid var(--line);
+    border-radius:999px;padding:6px 10px;font-size:12px;white-space:nowrap
+  }
+  .drop{
+    display:block;background:rgba(255,255,255,.9);
+    border:1.5px dashed #9eaaa4;border-radius:14px;
+    padding:31px 24px;text-align:center;cursor:pointer;
+    box-shadow:0 4px 18px rgba(26,43,55,.04);
+    transition:.18s ease;
+  }
+  .drop:hover,.drop.drag{
+    border-color:var(--green);background:#fbfefc;
+    transform:translateY(-1px);box-shadow:var(--shadow)
+  }
+  .upload-icon{
+    width:46px;height:46px;margin:0 auto 12px;border-radius:12px;
+    display:grid;place-items:center;background:var(--green-soft);color:var(--green);
+    font-size:22px;font-weight:700
+  }
+  .drop strong{display:block;font-size:17px;margin-bottom:5px}
+  .drop span{font-size:13px;color:var(--muted)}
+  #file{display:none}
+  .toolbar{
+    display:flex;gap:9px;align-items:center;flex-wrap:wrap;
+    margin:18px 0 12px;padding:11px;background:#fff;border:1px solid var(--line);
+    border-radius:12px;box-shadow:0 4px 16px rgba(26,43,55,.04)
+  }
+  button{
+    font:inherit;font-size:13px;font-weight:600;
+    border:1px solid #cfd8dd;background:white;color:#26333c;
+    border-radius:8px;padding:8px 13px;cursor:pointer;transition:.15s ease
+  }
+  button:hover{border-color:#aab6bd;background:#f8fafb}
+  button.primary{background:var(--green);color:white;border-color:var(--green)}
+  button.primary:hover{background:var(--green-dark);border-color:var(--green-dark)}
+  .status{margin-left:auto;color:var(--muted);font-size:13px;padding-right:4px}
+  .error{color:#b42318}
+  .tabs{
+    display:flex;gap:7px;flex-wrap:wrap;margin:14px 0 10px;
+    padding:4px;background:#e9eef1;border-radius:10px;width:max-content;max-width:100%
+  }
+  .tab{
+    border:0;background:transparent;color:#5b6872;border-radius:7px;
+    padding:7px 12px;font-size:12px
+  }
+  .tab:hover{background:rgba(255,255,255,.65);border:0}
+  .tab.active{background:#fff;color:#17212b;box-shadow:0 2px 7px rgba(26,43,55,.09)}
+  .panel{display:none}.panel.active{display:block}
+  .table-card{
+    background:#fff;border:1px solid var(--line);border-radius:12px;
+    overflow:hidden;box-shadow:0 5px 18px rgba(26,43,55,.045)
+  }
+  table{width:100%;border-collapse:collapse;background:white;table-layout:fixed}
+  th,td{
+    border-right:1px solid #dde3e7;border-bottom:1px solid #dde3e7;
+    padding:5px 9px;font-family:Calibri,Arial,sans-serif;font-size:10pt;height:27px
+  }
+  th:last-child,td:last-child{border-right:0}
+  tbody tr:last-child td{border-bottom:0}
+  th{
+    background:#f7f9fa;font-weight:700;text-align:left;color:#52606a;
+    font-size:11px;text-transform:uppercase;letter-spacing:.035em;height:31px
+  }
+  th:nth-child(1){width:30%} th:nth-child(2){width:15%} th:nth-child(3){width:40%} th:nth-child(4){width:15%}
+  tbody tr:not(.gap-row):hover td{background:#f8fbf9}
+  td[contenteditable="true"]{transition:background .12s ease}
+  td[contenteditable="true"]:focus{
+    outline:2px solid #5b9bd5;outline-offset:-2px;background:#fff!important
+  }
+  tr.review td:first-child,tr.review td:last-child{background:#fff4bf}
+  tr.gap-row td{height:25px;background:#fafbfc}
+  .note-card{
+    margin-top:12px;display:flex;gap:10px;align-items:flex-start;
+    padding:11px 13px;background:#fff;border:1px solid var(--line);border-radius:10px;
+    color:var(--muted);font-size:12px;line-height:1.45
+  }
+  .note-dot{flex:0 0 auto;width:7px;height:7px;border-radius:50%;background:#e2aa22;margin-top:5px}
+  .empty{padding:22px;background:white;border:1px solid #ddd}
+  @media(max-width:700px){
+    .app{padding:24px 12px 36px}
+    .hero{align-items:flex-start;flex-direction:column}
+    h1{font-size:25px}
+    .version{display:none}
+    .drop{padding:25px 16px}
+    .status{width:100%;margin-left:0}
+    th,td{padding:5px 6px}
+  }
+</style>
+</head>
+<body>
+<div class="topbar"></div>
+<div class="app">
+  <div class="hero">
+    <div>
+      <div class="eyebrow">Highlight · Dispatch Utility</div>
+      <h1>MW Board Builder</h1>
+      <p class="sub">Turn the MW OVERALL PDF into a clean, sorted Excel board.</p>
+    </div>
+    <div class="version">v6 · Local browser tool</div>
+  </div>
+
+  <label class="drop" id="drop">
+    <div class="upload-icon">↑</div>
+    <strong>Drop MW OVERALL PDF here</strong>
+    <span>or click to select the daily planning PDF</span>
+    <input id="file" type="file" accept="application/pdf,.pdf">
+  </label>
+
+  <div class="toolbar" id="toolbar" hidden>
+    <button class="primary" id="copy">Copy B:E for Excel</button>
+    <button id="reset">Clear</button>
+    <span class="status" id="status"></span>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div id="panels"></div>
+
+  <div class="note-card">
+    <span class="note-dot"></span>
+    <span>E rules: 57=R, 48/49=D, 55=H, 58=TRI, blank/unknown=?.
+    Driver column uses first name with normal capitalization; Oleg keeps the surname initial. BACK BY remains uppercase. Future BACK BY dates are kept (example: NASIR BACK BY 10.09). Expired BACK BY dates are ignored. Exactly one blank row is inserted between state groups (and between Chicago-area IL and Downstate IL). Yellow cells need a quick manual check. F and G are never included.</span>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+const STATE_ORDER = ["WI","IL","MI","IN","OH","KY","MO","IA","TN","MS","OK","AR","AL","GA","LA","NE","KS","CO","SD","ND","TX"];
+const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const DAY_LABEL = {Mon:"MONDAY",Tue:"TUESDAY",Wed:"WEDNESDAY",Thu:"THURSDAY",Fri:"FRIDAY",Sat:"SATURDAY",Sun:"SUNDAY"};
+
+// Common Chicago-area destinations. Unknown IL cities safely go to Downstate.
+const CHICAGO_AREA = new Set([
+ "CHICAGO","JOLIET","CAROL STREAM","UNIVERSITY PARK","ELK GROVE VILLAGE","BOLINGBROOK",
+ "ROMEOVILLE","AURORA","NAPERVILLE","SCHAUMBURG","ELGIN","ADDISON","BENSENVILLE",
+ "WOOD DALE","DES PLAINES","NORTHLAKE","FRANKLIN PARK","MELROSE PARK","BEDFORD PARK",
+ "BRIDGEVIEW","BURBANK","ALSIP","CRESTWOOD","TINLEY PARK","MOKENA","NEW LENOX",
+ "PLAINFIELD","SHOREWOOD","LOCKPORT","LEMONT","MCCOOK","HODGKINS","BURR RIDGE",
+ "DOWNERS GROVE","WOODRIDGE","DARIEN","WEST CHICAGO","BATAVIA","GENEVA","ST CHARLES",
+ "HANOVER PARK","STREAMWOOD","BARTLETT","PALATINE","ARLINGTON HEIGHTS","WHEELING",
+ "NILES","SKOKIE","EVANSTON","MORTON GROVE","LINCOLNWOOD","NORTHBROOK","DEERFIELD",
+ "BUFFALO GROVE","VERNON HILLS","LIBERTYVILLE","GURNEE","WAUKEGAN","MUNDELEIN",
+ "MATTESON","MONEE","CRETE","CHICAGO HEIGHTS","LANSING","CALUMET CITY","HARVEY"
+]);
+
+let parsed = {};
+let activeDay = null;
+let reportDate = null;
+
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+}
+
+const drop = document.getElementById("drop");
+const input = document.getElementById("file");
+drop.addEventListener("dragover", e => {e.preventDefault(); drop.classList.add("drag")});
+drop.addEventListener("dragleave", () => drop.classList.remove("drag"));
+drop.addEventListener("drop", e => {
+  e.preventDefault(); drop.classList.remove("drag");
+  const f=e.dataTransfer.files[0]; if(f) processFile(f);
+});
+input.addEventListener("change", () => input.files[0] && processFile(input.files[0]));
+document.getElementById("reset").onclick = () => location.reload();
+document.getElementById("copy").onclick = copyCurrent;
+
+function cleanText(s){
+  return (s||"").replace(/[\uE000-\uF8FF]/g,"").replace(/\s+/g," ").trim();
+}
+function trailerType(t){
+  const s=String(t||"").trim();
+  if(/^57\d{3}/.test(s)) return "R";
+  if(/^(48|49)\d{3}/.test(s)) return "D";
+  if(/^55\d{3}/.test(s)) return "H";
+  if(/^58\d{3}/.test(s)) return "TRI";
+  return "?";
+}
+function normalizeDriver(s, backBy){
+  s=cleanText(s).replace(/^\d+\.\s*/,"").trim();
+  s=s.replace(/\s*-\s*(NEW|BACK BY.*)$/i,"").trim();
+  const parts=s.split(/\s+/).filter(Boolean);
+  const rawFirst=(parts[0]||"").toLowerCase();
+  const first=rawFirst ? rawFirst[0].toUpperCase()+rawFirst.slice(1) : "";
+  let shortName=first;
+  // There are multiple Olegs on the board, so distinguish them by surname initial.
+  if(first.toUpperCase()==="OLEG" && parts.length>1){
+    shortName=first+" "+parts[1][0].toUpperCase();
+  }
+  if(backBy && isFutureBackBy(backBy)) return shortName+" BACK BY "+backBy.replace("/",".");
+  return shortName;
+}
+function isFutureBackBy(md){
+  if(!reportDate) return false;
+  const m=md.match(/^(\d{1,2})\/(\d{1,2})$/);
+  if(!m) return false;
+  const month=+m[1], day=+m[2];
+  const d=new Date(reportDate.getFullYear(),month-1,day);
+  return d > reportDate;
+}
+function detectReportDate(items){
+  const monthNames={JANUARY:0,FEBRUARY:1,MARCH:2,APRIL:3,MAY:4,JUNE:5,JULY:6,AUGUST:7,SEPTEMBER:8,OCTOBER:9,NOVEMBER:10,DECEMBER:11};
+  const joined=items.map(o=>cleanText(o.str)).join(" ");
+  const m=joined.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s*,?\s*(\d{1,2})\b/i);
+  if(!m) return null;
+  // MW report itself does not print the year. Use current year; around New Year choose nearest occurrence.
+  const now=new Date(), mon=monthNames[m[1].toUpperCase()], day=+m[2];
+  let d=new Date(now.getFullYear(),mon,day);
+  if(d-now > 1000*60*60*24*180) d=new Date(now.getFullYear()-1,mon,day);
+  if(now-d > 1000*60*60*24*180) d=new Date(now.getFullYear()+1,mon,day);
+  return d;
+}
+function parseDestination(raw){
+  let s=cleanText(raw).toUpperCase().replace(/\s*,\s*/g,", ");
+  const tokens=s.split(",").map(x=>x.trim()).filter(Boolean);
+  const allStates=tokens.length>=2 && tokens.every(x=>/^[A-Z]{2}$/.test(x));
+  if(allStates){
+    const st=tokens[tokens.length-1];
+    return {display:st,state:st,city:"",review:true};
+  }
+  const m=s.match(/^(.*?),\s*([A-Z]{2})$/);
+  if(!m) return {display:s,state:"ZZ",city:"",review:true};
+  let city=m[1].trim().replace(/\.$/,"");
+  let st=m[2];
+  if(city==="EDWARDSVILLE" && st==="IL")
+    return {display:"St Louis, MO",state:"MO",city:"ST LOUIS",review:false,special:true};
+  return {
+    display:titleCity(city)+", "+st,
+    state:st, city:city.replace(/\./g,"").trim(),
+    review:false
+  };
+}
+function titleCity(s){
+  return s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())
+    .replace(/\bMt\b/g,"Mt");
+}
+function sortKey(r, idx){
+  let stIndex=STATE_ORDER.indexOf(r.dest.state);
+  if(stIndex<0) stIndex=999;
+  let ilBand=0;
+  if(r.dest.state==="IL") ilBand=CHICAGO_AREA.has(r.dest.city) ? 0 : 1;
+  return [stIndex, ilBand, idx];
+}
+function cmp(a,b){
+  const A=a._key,B=b._key;
+  return A[0]-B[0] || A[1]-B[1] || A[2]-B[2];
+}
+
+async function processFile(file){
+  const status=document.getElementById("status");
+  try{
+    if(!window.pdfjsLib) throw new Error("PDF reader library could not load. Internet access to cdnjs.cloudflare.com may be blocked.");
+    status.textContent="Reading PDF...";
+    reportDate=null;
+    document.getElementById("toolbar").hidden=false;
+
+    const bytes=await file.arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:bytes}).promise;
+    let rows=[];
+    for(let p=1;p<=pdf.numPages;p++){
+      const page=await pdf.getPage(p);
+      const tc=await page.getTextContent();
+      if(!reportDate) reportDate=detectReportDate(tc.items);
+      rows.push(...parsePage(tc.items));
+    }
+    if(!rows.length) throw new Error("No MW OVERALL rows were detected.");
+
+    parsed={};
+    rows.forEach((r,i)=>{
+      r.dest=parseDestination(r.destination);
+      r.type=trailerType(r.trailer);
+      r.review=r.dest.review || r.type==="?";
+      r._key=sortKey(r,i);
+      (parsed[r.delivery]??=[]).push(r);
+    });
+    Object.values(parsed).forEach(a=>a.sort(cmp));
+    render();
+    status.textContent=`${rows.length} drivers found`;
+  }catch(err){
+    status.innerHTML=`<span class="error">${escapeHtml(err.message)}</span>`;
+  }
+}
+
+// Coordinate-based parser for the MW OVERALL ACE table.
+// It finds each data row from the Delivery column, then reads cells by X position.
+function parsePage(items){
+  const it=items.map(o=>({
+    text:cleanText(o.str), x:o.transform[4], y:o.transform[5]
+  })).filter(o=>o.text);
+
+  const anchors=it.filter(o=>o.x>=195 && o.x<235 && DAYS.includes(o.text));
+  const out=[];
+  for(let ai=0;ai<anchors.length;ai++){
+    const a=anchors[ai], y=a.y;
+    const same=it.filter(o=>Math.abs(o.y-y)<2.2);
+
+    const dep=cell(same,140,195);
+    const del=cell(same,195,250);
+    const truck=cell(same,250,305);
+    const trailer=cell(same,305,360);
+    const destination=cell(same,360,470);
+
+    let driver=cell(same,20,140);
+    const nextAnchorY = ai+1<anchors.length ? anchors[ai+1].y : -Infinity;
+    const between=it.filter(o=>o.x<140 && o.x>20 && o.y<y+18 && o.y>nextAnchorY+2)
+      .sort((a,b)=>b.y-a.y);
+    const driverContext=cleanText([driver,...between.map(z=>z.text)].join(" "));
+    const backMatch=driverContext.match(/BACK\s+BY\s+(\d{1,2}\/\d{1,2})/i);
+    const backBy=backMatch ? backMatch[1] : "";
+    driver=normalizeDriver(driver, backBy);
+    if(!driver || !del || !truck || !destination) continue;
+    out.push({driver,departure:dep,delivery:del,truck,trailer,destination});
+  }
+  return out;
+}
+function cell(items,x1,x2){
+  return cleanText(items.filter(o=>o.x>=x1 && o.x<x2).sort((a,b)=>a.x-b.x).map(o=>o.text).join(" "));
+}
+
+function boardGroup(r){
+  // Illinois is intentionally split into Chicago-area and Downstate,
+  // so one blank row is also inserted between those two IL sections.
+  if(r.dest.state==="IL"){
+    return CHICAGO_AREA.has(r.dest.city) ? "IL_CHICAGO" : "IL_DOWNSTATE";
+  }
+  return r.dest.state;
+}
+
+function render(){
+  const tabs=document.getElementById("tabs"), panels=document.getElementById("panels");
+  tabs.innerHTML=""; panels.innerHTML="";
+  const found=DAYS.filter(d=>parsed[d]?.length);
+  activeDay=found[0]||null;
+
+  for(const day of found){
+    const b=document.createElement("button");
+    b.className="tab"+(day===activeDay?" active":"");
+    b.textContent=`${DAY_LABEL[day]} (${parsed[day].length})`;
+    b.onclick=()=>activate(day);
+    b.dataset.day=day; tabs.appendChild(b);
+
+    const p=document.createElement("div");
+    p.className="panel"+(day===activeDay?" active":"");
+    p.dataset.day=day;
+    const table=document.createElement("table");
+    table.innerHTML="<thead><tr><th>B · City, State</th><th>C · Truck</th><th>D · Driver</th><th>E · Type</th></tr></thead>";
+    const tb=document.createElement("tbody");
+    let prevGroup=null;
+    parsed[day].forEach((r,idx)=>{
+      const group=boardGroup(r);
+      if(idx>0 && group!==prevGroup){
+        const gap=document.createElement("tr");
+        gap.className="gap-row";
+        gap.dataset.gap="1";
+        gap.innerHTML='<td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td>';
+        tb.appendChild(gap);
+      }
+      const tr=document.createElement("tr");
+      if(r.review) tr.className="review";
+      tr.innerHTML=`<td contenteditable="true">${escapeHtml(r.dest.display)}</td>
+                    <td contenteditable="true">${escapeHtml(r.truck)}</td>
+                    <td contenteditable="true">${escapeHtml(r.driver)}</td>
+                    <td contenteditable="true">${escapeHtml(r.type)}</td>`;
+      tb.appendChild(tr);
+      prevGroup=group;
+    });
+    table.appendChild(tb);
+    const card=document.createElement("div");
+    card.className="table-card";
+    card.appendChild(table);
+    p.appendChild(card);
+    panels.appendChild(p);
+  }
+}
+function activate(day){
+  activeDay=day;
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.day===day));
+  document.querySelectorAll(".panel").forEach(x=>x.classList.toggle("active",x.dataset.day===day));
+}
+async function copyCurrent(){
+  const panel=document.querySelector(`.panel[data-day="${activeDay}"]`);
+  if(!panel) return;
+  const lines=[...panel.querySelectorAll("tbody tr")].map(tr=>
+    [...tr.children].map(td=>td.innerText.trim()).join("\t")
+  ).join("\n");
+  try{
+    await navigator.clipboard.writeText(lines);
+    document.getElementById("status").textContent=`${DAY_LABEL[activeDay]} B:E copied`;
+  }catch(e){
+    const ta=document.createElement("textarea"); ta.value=lines; document.body.appendChild(ta);
+    ta.select(); document.execCommand("copy"); ta.remove();
+    document.getElementById("status").textContent=`${DAY_LABEL[activeDay]} B:E copied`;
+  }
+}
+function escapeHtml(s){
+  return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+</script>
+</body>
+</html>
