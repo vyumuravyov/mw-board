@@ -127,6 +127,56 @@
     .status{width:100%;margin-left:0}
     th,td{padding:5px 6px}
   }
+
+  .summary{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));
+    gap:10px;margin:14px 0
+  }
+  .metric{
+    background:#fff;border:1px solid var(--line);border-radius:11px;
+    padding:12px 14px;box-shadow:0 3px 12px rgba(26,43,55,.035)
+  }
+  .metric .value{font-size:20px;font-weight:700;line-height:1.05;color:#17212b}
+  .metric .label{font-size:11px;color:var(--muted);margin-top:4px}
+  .metric.warn .value{color:#9a6700}
+  .review-box{
+    display:none;margin:0 0 12px;background:#fff;border:1px solid var(--line);
+    border-radius:11px;overflow:hidden
+  }
+  .review-box.show{display:block}
+  .review-head{
+    padding:10px 13px;font-size:12px;font-weight:700;background:#fff9df;
+    border-bottom:1px solid #eadfa8;color:#735c00
+  }
+  .review-list{display:flex;flex-wrap:wrap;gap:7px;padding:10px}
+  .review-item{
+    font:inherit;font-size:12px;font-weight:600;padding:6px 9px;border-radius:7px;
+    border:1px solid #e2d38c;background:#fffdf2;color:#665300
+  }
+  .review-item:hover{background:#fff7cf;border-color:#cfb94f}
+  tr.flash td{animation:rowFlash 1.4s ease}
+  @keyframes rowFlash{0%,100%{background:inherit}25%,65%{background:#ffe48a}}
+  button.copied{background:#16784a!important;color:#fff!important;border-color:#16784a!important}
+
+  .drop.loaded{
+    padding:12px 16px;border-style:solid;display:flex;align-items:center;
+    justify-content:space-between;text-align:left;gap:14px
+  }
+  .drop.loaded .upload-icon{display:none}
+  .drop.loaded strong{font-size:13px;margin:0}
+  .drop.loaded span{font-size:12px}
+  .loaded-meta{display:none}
+  .drop.loaded .loaded-meta{display:block;color:var(--green);font-weight:700;font-size:12px}
+  .drop.loaded .drop-main{display:flex;align-items:center;gap:10px}
+  .il-actions{display:flex;gap:6px;margin-top:5px}
+  .il-choice{padding:4px 7px;font-size:11px}
+  details.rules{margin-top:12px}
+  details.rules summary{
+    cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+    color:var(--muted);font-size:12px;font-weight:600;user-select:none
+  }
+  details.rules summary:hover{color:#26333c}
+  details.rules .note-card{margin-top:8px}
 </style>
 </head>
 <body>
@@ -138,13 +188,18 @@
       <h1>MW Board Builder</h1>
       <p class="sub">Turn the MW OVERALL PDF into a clean, sorted Excel board.</p>
     </div>
-    <div class="version">v6 · Local browser tool</div>
+    <div class="version">Local browser tool</div>
   </div>
 
   <label class="drop" id="drop">
-    <div class="upload-icon">↑</div>
-    <strong>Drop MW OVERALL PDF here</strong>
-    <span>or click to select the daily planning PDF</span>
+    <div class="drop-main">
+      <div class="upload-icon">↑</div>
+      <div>
+        <strong id="dropTitle">Drop MW OVERALL PDF here</strong>
+        <span id="dropSub">or click to select the daily planning PDF</span>
+      </div>
+    </div>
+    <div class="loaded-meta" id="loadedMeta">Load another PDF</div>
     <input id="file" type="file" accept="application/pdf,.pdf">
   </label>
 
@@ -154,14 +209,17 @@
     <span class="status" id="status"></span>
   </div>
 
+  <div class="summary" id="summary" hidden></div>
+  <div class="review-box" id="reviewBox"><div class="review-head" id="reviewHead"></div><div class="review-list" id="reviewList"></div></div>
+
   <div class="tabs" id="tabs"></div>
   <div id="panels"></div>
 
-  <div class="note-card">
+  <details class="rules"><summary>Rules & mappings</summary><div class="note-card">
     <span class="note-dot"></span>
     <span>E rules: 57=R, 48/49=D, 55=H, 58=TRI, blank/unknown=?.
     Driver column uses first name with normal capitalization; Oleg keeps the surname initial. BACK BY remains uppercase. Future BACK BY dates are kept (example: NASIR BACK BY 10.09). Expired BACK BY dates are ignored. Exactly one blank row is inserted between state groups (and between Chicago-area IL and Downstate IL). Yellow cells need a quick manual check. F and G are never included.</span>
-  </div>
+  </div></details>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -183,10 +241,28 @@ const CHICAGO_AREA = new Set([
  "BUFFALO GROVE","VERNON HILLS","LIBERTYVILLE","GURNEE","WAUKEGAN","MUNDELEIN",
  "MATTESON","MONEE","CRETE","CHICAGO HEIGHTS","LANSING","CALUMET CITY","HARVEY"
 ]);
+const KNOWN_DOWNSTATE_IL = new Set(["EFFINGHAM","MT STERLING","MT VERNON","ALTON"]);
 
 let parsed = {};
 let activeDay = null;
 let reportDate = null;
+let sourceDriverCount = 0;
+let parseWarnings = [];
+const IL_RULES_KEY="mwBoard.ilRules.v1";
+function loadILRules(){
+  try{return JSON.parse(localStorage.getItem(IL_RULES_KEY)||"{}")}catch(e){return{}}
+}
+function saveILRule(city,group){
+  const rules=loadILRules(); rules[city]=group;
+  localStorage.setItem(IL_RULES_KEY,JSON.stringify(rules));
+}
+function ilGroup(city){
+  const learned=loadILRules()[city];
+  if(learned==="CHICAGO"||learned==="DOWNSTATE") return learned;
+  if(CHICAGO_AREA.has(city)) return "CHICAGO";
+  if(KNOWN_DOWNSTATE_IL.has(city)) return "DOWNSTATE";
+  return "";
+}
 
 if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -234,9 +310,13 @@ function isFutureBackBy(md){
   if(!reportDate) return false;
   const m=md.match(/^(\d{1,2})\/(\d{1,2})$/);
   if(!m) return false;
-  const month=+m[1], day=+m[2];
-  const d=new Date(reportDate.getFullYear(),month-1,day);
-  return d > reportDate;
+  const month=+m[1]-1, day=+m[2];
+  let year=reportDate.getFullYear();
+  if(reportDate.getMonth()>=9 && month<=2) year++;
+  else if(reportDate.getMonth()<=2 && month>=9) year--;
+  const d=new Date(year,month,day);
+  const rd=new Date(reportDate.getFullYear(),reportDate.getMonth(),reportDate.getDate());
+  return d>=rd;
 }
 function detectReportDate(items){
   const monthNames={JANUARY:0,FEBRUARY:1,MARCH:2,APRIL:3,MAY:4,JUNE:5,JULY:6,AUGUST:7,SEPTEMBER:8,OCTOBER:9,NOVEMBER:10,DECEMBER:11};
@@ -264,10 +344,13 @@ function parseDestination(raw){
   let st=m[2];
   if(city==="EDWARDSVILLE" && st==="IL")
     return {display:"St Louis, MO",state:"MO",city:"ST LOUIS",review:false,special:true};
+  const normalizedCity=city.replace(/\./g,"").trim();
+  const unknownIL=st==="IL" && !ilGroup(normalizedCity);
   return {
     display:titleCity(city)+", "+st,
-    state:st, city:city.replace(/\./g,"").trim(),
-    review:false
+    state:st, city:normalizedCity,
+    review:unknownIL,
+    reviewKind:unknownIL ? "UNKNOWN_IL" : ""
   };
 }
 function titleCity(s){
@@ -297,10 +380,13 @@ async function processFile(file){
     const bytes=await file.arrayBuffer();
     const pdf=await pdfjsLib.getDocument({data:bytes}).promise;
     let rows=[];
+    sourceDriverCount=0;
+    parseWarnings=[];
     for(let p=1;p<=pdf.numPages;p++){
       const page=await pdf.getPage(p);
       const tc=await page.getTextContent();
       if(!reportDate) reportDate=detectReportDate(tc.items);
+      sourceDriverCount += tc.items.map(o=>({text:cleanText(o.str),x:o.transform[4]})).filter(o=>o.x>=195 && o.x<235 && DAYS.includes(o.text)).length;
       rows.push(...parsePage(tc.items));
     }
     if(!rows.length) throw new Error("No MW OVERALL rows were detected.");
@@ -310,12 +396,24 @@ async function processFile(file){
       r.dest=parseDestination(r.destination);
       r.type=trailerType(r.trailer);
       r.review=r.dest.review || r.type==="?";
+      r.reviewReasons=[];
+      if(r.dest.review){
+        if(r.dest.reviewKind==="UNKNOWN_IL") r.reviewReasons.push(`New IL city: ${r.dest.display}`);
+        else r.reviewReasons.push(r.dest.city ? "Destination needs review" : "Destination/city needs review");
+      }
+      if(r.type==="?") r.reviewReasons.push(r.trailer ? `Unknown trailer: ${r.trailer}` : "Trailer missing");
       r._key=sortKey(r,i);
       (parsed[r.delivery]??=[]).push(r);
     });
     Object.values(parsed).forEach(a=>a.sort(cmp));
     render();
-    status.textContent=`${rows.length} drivers found`;
+    renderSummary(rows.length);
+    const d=document.getElementById("drop");
+    d.classList.add("loaded");
+    document.getElementById("dropTitle").textContent=file.name;
+    document.getElementById("dropSub").textContent=reportDate ? reportDate.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+" · PDF loaded successfully" : "PDF loaded successfully";
+    status.textContent = sourceDriverCount===rows.length ? `${rows.length} drivers found · count OK` : `${rows.length} of ${sourceDriverCount} rows parsed · CHECK`;
+    status.classList.toggle("error", sourceDriverCount!==rows.length);
   }catch(err){
     status.innerHTML=`<span class="error">${escapeHtml(err.message)}</span>`;
   }
@@ -347,8 +445,27 @@ function parsePage(items){
     const driverContext=cleanText([driver,...between.map(z=>z.text)].join(" "));
     const backMatch=driverContext.match(/BACK\s+BY\s+(\d{1,2}\/\d{1,2})/i);
     const backBy=backMatch ? backMatch[1] : "";
+    // Oleg's surname can be wrapped onto the next PDF line.
+    if(/^\s*\d+\.\s*OLEG\b/i.test(driver) || /^\s*OLEG\b/i.test(driver)){
+      const continuation=between.find(z=>{
+        const t=cleanText(z.text);
+        return /^[A-Z][A-Z.'-]{2,}$/.test(t) &&
+               !/^(OLEG|BACK|BY|NEW)$/i.test(t) &&
+               !DAYS.includes(t);
+      });
+      if(continuation && !/\bOLEG\s+[A-Z]/i.test(driver)){
+        driver=cleanText(driver+" "+continuation.text);
+      }
+    }
     driver=normalizeDriver(driver, backBy);
-    if(!driver || !del || !truck || !destination) continue;
+    if(!driver || !del || !truck || !destination){
+      parseWarnings.push({
+        delivery:del||a.text||"?",
+        driver:driver||"(driver not detected)",
+        missing:[!driver?"driver":"",!del?"delivery":"",!truck?"truck":"",!destination?"destination":""].filter(Boolean)
+      });
+      continue;
+    }
     out.push({driver,departure:dep,delivery:del,truck,trailer,destination});
   }
   return out;
@@ -387,6 +504,7 @@ function render(){
     const tb=document.createElement("tbody");
     let prevGroup=null;
     parsed[day].forEach((r,idx)=>{
+      r._rowId=`${day}-${idx}`;
       const group=boardGroup(r);
       if(idx>0 && group!==prevGroup){
         const gap=document.createElement("tr");
@@ -396,7 +514,8 @@ function render(){
         tb.appendChild(gap);
       }
       const tr=document.createElement("tr");
-      if(r.review) tr.className="review";
+      tr.dataset.rowId=r._rowId;
+      if(r.review) { tr.className="review"; tr.title=r.reviewReasons.join(" · "); }
       tr.innerHTML=`<td contenteditable="true">${escapeHtml(r.dest.display)}</td>
                     <td contenteditable="true">${escapeHtml(r.truck)}</td>
                     <td contenteditable="true">${escapeHtml(r.driver)}</td>
@@ -412,6 +531,74 @@ function render(){
     panels.appendChild(p);
   }
 }
+
+function renderSummary(parsedCount){
+  const summary=document.getElementById("summary");
+  summary.hidden=false;
+  const dayMetrics=DAYS.filter(d=>parsed[d]?.length)
+    .map(d=>`<div class="metric"><div class="value">${parsed[d].length}</div><div class="label">${DAY_LABEL[d]}</div></div>`).join("");
+  const reviewCount=Object.values(parsed).flat().filter(r=>r.review).length + parseWarnings.length;
+  const countOK=sourceDriverCount===parsedCount && parseWarnings.length===0;
+  summary.innerHTML=
+    `<div class="metric"><div class="value">${parsedCount}</div><div class="label">Drivers parsed</div></div>`+
+    dayMetrics+
+    `<div class="metric ${reviewCount?"warn":""}"><div class="value">${reviewCount}</div><div class="label">Need review</div></div>`+
+    `<div class="metric ${countOK?"":"warn"}"><div class="value">${countOK?"✓":"!"}</div><div class="label">${countOK?"PDF integrity OK":`${parseWarnings.length} incomplete PDF row${parseWarnings.length===1?"":"s"}`}</div></div>`;
+  renderReviewBox();
+}
+function renderReviewBox(){
+  const box=document.getElementById("reviewBox"), list=document.getElementById("reviewList"), head=document.getElementById("reviewHead");
+  const items=[];
+  for(const w of parseWarnings) items.push({day:null,r:null,warning:w});
+  for(const day of DAYS){
+    for(const r of (parsed[day]||[])){
+      if(r.review) items.push({day,r});
+    }
+  }
+  box.classList.toggle("show",items.length>0);
+  if(!items.length){ list.innerHTML=""; return; }
+  head.textContent=`${items.length} item${items.length===1?"":"s"} need a quick check`;
+  list.innerHTML="";
+  items.forEach(({day,r,warning})=>{
+    const b=document.createElement("button");
+    b.className="review-item";
+    if(warning){
+      b.textContent=`PDF row · ${warning.driver} · missing ${warning.missing.join(", ")}`;
+      b.title="This source row could not be added automatically.";
+    }else{
+      b.textContent=`${DAY_LABEL[day]} · ${r.driver} · ${r.reviewReasons.join(" / ")}`;
+      b.onclick=()=>{
+        activate(day);
+        const row=document.querySelector(`tr[data-row-id="${r._rowId}"]`);
+        if(row){
+          row.scrollIntoView({behavior:"smooth",block:"center"});
+          row.classList.remove("flash"); void row.offsetWidth; row.classList.add("flash");
+        }
+      };
+    }
+    list.appendChild(b);
+    if(r && r.dest.reviewKind==="UNKNOWN_IL"){
+      const actions=document.createElement("span");
+      actions.className="il-actions";
+      for(const [label,group] of [["Chicago Area","CHICAGO"],["Downstate","DOWNSTATE"]]){
+        const c=document.createElement("button");
+        c.className="il-choice"; c.textContent=label;
+        c.onclick=(e)=>{
+          e.stopPropagation();
+          saveILRule(r.dest.city,group);
+          r.dest.review=false; r.dest.reviewKind="";
+          r.reviewReasons=r.reviewReasons.filter(x=>!x.startsWith("New IL city:"));
+          r.review=r.reviewReasons.length>0;
+          Object.values(parsed).forEach(arr=>arr.forEach((x,i)=>x._key=sortKey(x,i)));
+          Object.values(parsed).forEach(arr=>arr.sort(cmp));
+          render(); renderSummary(Object.values(parsed).flat().length);
+        };
+        actions.appendChild(c);
+      }
+      list.appendChild(actions);
+    }
+  });
+}
 function activate(day){
   activeDay=day;
   document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.day===day));
@@ -425,11 +612,19 @@ async function copyCurrent(){
   ).join("\n");
   try{
     await navigator.clipboard.writeText(lines);
+    const btn=document.getElementById("copy");
+    const dataRows=[...panel.querySelectorAll("tbody tr:not(.gap-row)")].length;
+    const old=btn.textContent; btn.textContent=`✓ Copied ${dataRows} drivers`; btn.classList.add("copied");
     document.getElementById("status").textContent=`${DAY_LABEL[activeDay]} B:E copied`;
+    setTimeout(()=>{btn.textContent=old;btn.classList.remove("copied")},1800);
   }catch(e){
     const ta=document.createElement("textarea"); ta.value=lines; document.body.appendChild(ta);
     ta.select(); document.execCommand("copy"); ta.remove();
+    const btn=document.getElementById("copy");
+    const dataRows=[...panel.querySelectorAll("tbody tr:not(.gap-row)")].length;
+    const old=btn.textContent; btn.textContent=`✓ Copied ${dataRows} drivers`; btn.classList.add("copied");
     document.getElementById("status").textContent=`${DAY_LABEL[activeDay]} B:E copied`;
+    setTimeout(()=>{btn.textContent=old;btn.classList.remove("copied")},1800);
   }
 }
 function escapeHtml(s){
