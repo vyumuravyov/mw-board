@@ -2683,6 +2683,11 @@ document.addEventListener("keydown",e=>{
 
 let excelPlan=null;
 
+
+function pdfCity(p){
+  return String((p&&(p.city||p.dest||p.destination||p.Destination))||"").trim();
+}
+
 function officeText(v){
   if(v===null || v===undefined) return "";
   return String(v).trim();
@@ -2817,7 +2822,7 @@ async function buildOfficePlan(){
         if(e){
           used.add(e.row); matched++;
           merged.push({
-            city:p.city||e.city, truck:p.truck||e.truck,
+            city:pdfCity(p)||e.city, truck:p.truck||e.truck,
             driver:isZZ(p)?"ZZ":p.driver||e.driver,
             trailer:excelTrailerType(p.trailer||e.trailer,p.driver||e.driver),
             f:e.f,g:e.g,sourceRow:e.row,isNew:false,previewStatus:"MATCHED"
@@ -2825,8 +2830,8 @@ async function buildOfficePlan(){
         }else{
           newCount++;
           merged.push({
-            city:p.city||"",truck:p.truck||"",driver:isZZ(p)?"ZZ":p.driver||"",
-            trailer:excelTrailerType(p.trailer,p.driver),f:"",g:"",sourceRow:null,isNew:true,previewStatus:"NEW"
+            city:pdfCity(p),truck:p.truck||"",driver:isZZ(p)?"ZZ":p.driver||"",
+            trailer:excelTrailerType(p.trailer,p.driver),f:"",g:"",sourceRow:null,isNew:true,previewStatus:"NEW",cityMissing:!pdfCity(p)
           });
         }
       }
@@ -2950,8 +2955,9 @@ function renderExcelBoardPreview(plan){
     for(const rec of p.outputRows){
       if(!rec){out+=`<tr class="sep"><td colspan="5"></td></tr>`;continue;}
       const s=rec.previewStatus||"EXISTING";
+      const shownStatus=rec.cityMissing?"NEW · CITY MISSING":s;
       const cls=s==="NEW"?"ebp-new":s==="MATCHED"?"ebp-match":"ebp-old";
-      out+=`<tr class="${cls}"><td>${escHtml(rec.city)}</td><td>${escHtml(rec.truck)}</td><td>${escHtml(rec.driver)}</td><td>${escHtml(excelTrailerType(rec.trailer,rec.driver))}</td><td><span class="ebp-tag">${s}</span></td></tr>`;
+      out+=`<tr class="${cls}"><td>${escHtml(rec.city)}</td><td>${escHtml(rec.truck)}</td><td>${escHtml(rec.driver)}</td><td>${escHtml(excelTrailerType(rec.trailer,rec.driver))}</td><td><span class="ebp-tag">${shownStatus}</span></td></tr>`;
     }
     out+=`</tbody></table>`;
     out+=`<div class="ebp-summary">Blue = already on this Excel day and kept · Green = new from PDF · Yellow = PDF driver matched to an existing Excel driver. Blank rows are the exact state separators that will be written.</div>`;
