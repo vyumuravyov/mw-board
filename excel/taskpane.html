@@ -2685,7 +2685,18 @@ let excelPlan=null;
 
 
 function pdfCity(p){
-  return String((p&&(p.city||p.dest||p.destination||p.Destination))||"").trim();
+  if(!p) return "";
+  // After PDF parsing, destination is normalized into p.dest.
+  // p.dest is an object: { display, state, city, ... }.
+  if(p.dest && typeof p.dest==="object" && p.dest.display) return String(p.dest.display).trim();
+  if(typeof p.dest==="string" && p.dest.trim()) return p.dest.trim();
+  if(p.city) return String(p.city).trim();
+  if(p.destination) {
+    const d=parseDestination(p.destination);
+    return d && d.display ? String(d.display).trim() : String(p.destination).trim();
+  }
+  if(p.Destination) return String(p.Destination).trim();
+  return "";
 }
 
 function officeText(v){
