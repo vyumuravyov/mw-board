@@ -2818,17 +2818,30 @@ async function buildOfficePlan(){
       }
 
       const bt=new Map(existing.filter(x=>nTruck(x.truck)).map(x=>[nTruck(x.truck),x]));
-      const bd=uniqueMap(existing,driverKey), bf=uniqueMap(existing,firstNameKey), bo=uniqueMap(existing,olegKey);
+      const bd=uniqueMap(existing,driverKey);
       const used=new Set(), merged=[];
       let matched=0,newCount=0;
 
       for(const p of q.pr){
         let e=null;
-        if(isZZ(p)) e=bd.get("ZZ")||bf.get("ZZ")||null;
-        if(!e&&nTruck(p.truck)){const c=bt.get(nTruck(p.truck));if(c&&!used.has(c.row))e=c;}
-        if(!e&&p.driver){const c=bd.get(driverKey(p.driver));if(c&&!used.has(c.row))e=c;}
-        if(!e&&firstNameKey(p.driver)==="OLEG"){const c=bo.get(olegKey(p.driver));if(c&&!used.has(c.row))e=c;}
-        if(!e&&p.driver){const c=bf.get(firstNameKey(p.driver));if(c&&!used.has(c.row))e=c;}
+
+        // SAFE MATCHING FOR EVERY DRIVER:
+        // 1) exact truck number is the primary identity;
+        // 2) exact normalized displayed name is fallback ONLY when unique;
+        // 3) NEVER match by first name alone. If two people share a first name,
+        //    they remain separate records instead of one overwriting the other.
+        if(isZZ(p)){
+          const c=bd.get("ZZ");
+          if(c&&!used.has(c.row))e=c;
+        }
+        if(!e&&nTruck(p.truck)){
+          const c=bt.get(nTruck(p.truck));
+          if(c&&!used.has(c.row))e=c;
+        }
+        if(!e&&p.driver){
+          const c=bd.get(driverKey(p.driver));
+          if(c&&!used.has(c.row))e=c;
+        }
 
         if(e){
           used.add(e.row); matched++;
@@ -2971,7 +2984,7 @@ function renderExcelBoardPreview(plan){
       out+=`<tr class="${cls}"><td>${escHtml(rec.city)}</td><td>${escHtml(rec.truck)}</td><td>${escHtml(rec.driver)}</td><td>${escHtml(excelTrailerType(rec.trailer,rec.driver))}</td><td><span class="ebp-tag">${shownStatus}</span></td></tr>`;
     }
     out+=`</tbody></table>`;
-    out+=`<div class="ebp-summary">Blue = already on this Excel day and kept · Green = new from PDF · Yellow = PDF driver matched to an existing Excel driver. Blank rows are the exact state separators that will be written.</div>`;
+    out+=`<div class="ebp-summary">Blue = already on this Excel day and kept · Green = new from PDF · Yellow = safely matched by truck or unique exact displayed name. First-name-only matching is disabled. Blank rows are the exact state separators that will be written.</div>`;
   }
   count.textContent=`${total} DRIVERS TOTAL`;
   body.innerHTML=out; box.hidden=false;
