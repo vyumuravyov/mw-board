@@ -2670,6 +2670,17 @@ function excelSheetForDay(day){
 }
 function nTruck(v){return String(v||"").replace(/\D/g,"")}
 function nDriver(v){return String(v||"").trim().toUpperCase()}
+function driverKey(v){
+  return String(v||"").toUpperCase().replace(/\bBACK\s+BY\b.*$/i,"").replace(/[^A-Z0-9 ]+/g," ").replace(/\s+/g," ").trim();
+}
+function firstNameKey(v){const k=driverKey(v);return k?k.split(" ")[0]:"";}
+function olegKey(v){const p=driverKey(v).split(" ").filter(Boolean);if(p[0]!=="OLEG")return "";return p.length>1?`OLEG ${p[1][0]}`:"OLEG";}
+function uniqueMap(records,keyFn){
+  const m=new Map(),dup=new Set();
+  for(const r of records){const k=keyFn(r.driver);if(!k)continue;if(m.has(k))dup.add(k);else m.set(k,r);}
+  for(const k of dup)m.delete(k);return m;
+}
+
 function isZZ(x){return String(x.driver||"").trim().toUpperCase()==="ZZ"}
 function likelyDriver(x){return isZZ(x)||!!x.driver&&(!!x.truck||!!x.city)}
 const EXCEL_DAY_ORDER=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
@@ -2755,7 +2766,7 @@ async function buildOfficePlan(){
     await context.sync();
 
     const plans=[];
-    const T={existing:0,newCount:0,matched:0,rowsToAdd:0,blankRowsRemoved:0};
+    const T={existing:0,newCount:0,matched:0,existingNotInPdf:0,rowsToAdd:0,blankRowsRemoved:0};
 
     for(const q of requests){
       const west=findWestInValues(q.rng.values);
@@ -2767,14 +2778,17 @@ async function buildOfficePlan(){
       }
 
       const bt=new Map(existing.filter(x=>nTruck(x.truck)).map(x=>[nTruck(x.truck),x]));
-      const bd=new Map(existing.filter(x=>x.driver).map(x=>[nDriver(x.driver),x]));
+      const bd=uniqueMap(existing,driverKey), bf=uniqueMap(existing,firstNameKey), bo=uniqueMap(existing,olegKey);
       const used=new Set(), merged=[];
       let matched=0,newCount=0;
 
       for(const p of q.pr){
-        let e=isZZ(p)?bd.get("ZZ"):null;
-        if(!e&&nTruck(p.truck))e=bt.get(nTruck(p.truck));
-        if(!e&&p.driver)e=bd.get(nDriver(p.driver));
+        let e=null;
+        if(isZZ(p)) e=bd.get("ZZ")||bf.get("ZZ")||null;
+        if(!e&&nTruck(p.truck)){const c=bt.get(nTruck(p.truck));if(c&&!used.has(c.row))e=c;}
+        if(!e&&p.driver){const c=bd.get(driverKey(p.driver));if(c&&!used.has(c.row))e=c;}
+        if(!e&&firstNameKey(p.driver)==="OLEG"){const c=bo.get(olegKey(p.driver));if(c&&!used.has(c.row))e=c;}
+        if(!e&&p.driver){const c=bf.get(firstNameKey(p.driver));if(c&&!used.has(c.row))e=c;}
 
         if(e){
           used.add(e.row); matched++;
@@ -2805,7 +2819,7 @@ async function buildOfficePlan(){
         throw Error(`${q.sn}: needs ${outputRows.length} rows above WEST, but only ${capacity} are available.`);
       }
       plans.push({day:q.day,sn:q.sn,start,oldWest:west,existing,merged,outputRows});
-      T.existing+=existing.length; T.newCount+=newCount; T.matched+=matched;
+      T.existing+=existing.length; T.newCount+=newCount; T.matched+=matched; T.existingNotInPdf+=(existing.length-used.size);
       T.blankRowsRemoved+=Math.max(0,capacity-outputRows.length);
     }
     if(!plans.length) throw Error("No matching day sheets / WEST boundary found in the open workbook.");
@@ -2906,7 +2920,7 @@ document.getElementById("excelAnalyze").onclick=async()=>{
     const x=excelPlan.T;
     document.getElementById("excelPreview").hidden=false;
     document.getElementById("excelPreview").textContent=
-      `UPDATE ALL DAYS: ${excelPlan.plans.map(p=>p.sn).join(", ")} · Existing: ${x.existing} · Matched: ${x.matched} · New from PDF: ${x.newCount}. `+
+      `UPDATE ALL DAYS: ${excelPlan.plans.map(p=>p.sn).join(", ")} · Existing: ${x.existing} · Matched: ${x.matched} · New from PDF: ${x.newCount} · Existing not in PDF: ${x.existingNotInPdf}. `+
       `Only B:G above WEST will be rebuilt. F/G move with the driver. WEST and H:N are untouched.`;
     document.getElementById("excelStatus").textContent="EXCEL · OPEN WORKBOOK · ANALYZED";
     document.getElementById("excelGenerate").disabled=false;
