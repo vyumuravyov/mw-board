@@ -3151,7 +3151,7 @@ function parsePage(items){
 
     let driver=cell(same,20,140);
     const nextAnchorY = ai+1<anchors.length ? anchors[ai+1].y : -Infinity;
-    const between=it.filter(o=>o.x<140 && o.x>20 && o.y<y+18 && o.y>nextAnchorY+2)
+    const between=it.filter(o=>o.x<140 && o.x>20 && o.y<y-2.2 && o.y>nextAnchorY+2)
       .sort((a,b)=>b.y-a.y);
     const driverContext=cleanText([driver,...between.map(z=>z.text)].join(" "));
     const backMatch=driverContext.match(/BACK\s+BY\s+(\d{1,2}\/\d{1,2})/i);
