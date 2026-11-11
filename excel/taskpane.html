@@ -2801,6 +2801,7 @@ function buildOutputRows(records){
 }
 function excelTrailerType(value, driver){
   const d=String(driver||"").trim().toUpperCase();
+  if(String(value??"").trim().toUpperCase()==="GAY TRUCK") return "GAY TRUCK";
   if(d==="ZZ") return "ZZ";
   const raw=String(value??"").trim().toUpperCase();
   if(["R","D","H","TRI","?"].includes(raw)) return raw;
@@ -2889,15 +2890,15 @@ async function buildOfficePlan(){
           used.add(e.row); matched++;
           merged.push({
             city:pdfCity(p)||e.city, truck:p.truck||e.truck,
-            driver:isZZ(p)?"ZZ":p.driver||e.driver,
-            trailer:excelTrailerType(p.trailer||e.trailer,p.driver||e.driver),
+            driver:String(p.truck||e.truck).trim()==="7722"?"Negusse":(isZZ(p)?"ZZ":p.driver||e.driver),
+            trailer:String(p.truck||e.truck).trim()==="7706"?"GAY TRUCK":excelTrailerType(p.trailer||e.trailer,p.driver||e.driver),
             f:e.f,g:e.g,sourceRow:e.row,isNew:false,previewStatus:"MATCHED"
           });
         }else{
           newCount++;
           merged.push({
-            city:pdfCity(p),truck:p.truck||"",driver:isZZ(p)?"ZZ":p.driver||"",
-            trailer:excelTrailerType(p.trailer,p.driver),f:"",g:"",sourceRow:null,isNew:true,previewStatus:"NEW",cityMissing:!pdfCity(p)
+            city:pdfCity(p),truck:p.truck||"",driver:String(p.truck).trim()==="7722"?"Negusse":(isZZ(p)?"ZZ":p.driver||""),
+            trailer:String(p.truck).trim()==="7706"?"GAY TRUCK":excelTrailerType(p.trailer,p.driver),f:"",g:"",sourceRow:null,isNew:true,previewStatus:"NEW",cityMissing:!pdfCity(p)
           });
         }
       }
@@ -3179,7 +3180,7 @@ async function processFile(file){
     parsed={};
     rows.forEach((r,i)=>{
       r.dest=parseDestination(r.destination);
-      r.type=trailerType(r.trailer);
+      r.type=String(r.truck).trim()==="7706" ? "GAY TRUCK" : trailerType(r.trailer);
       r.review=r.dest.review || r.type==="?";
       r.reviewReasons=[];
       if(r.dest.review){
@@ -3270,7 +3271,7 @@ function parsePage(items){
         driver=cleanText(driver+" "+continuation.text);
       }
     }
-    driver=normalizeDriver(driver, backBy);
+    driver=String(truck).trim()==="7722" ? "Negusse" : normalizeDriver(driver, backBy);
     if(!driver || !del || !truck || !destination){
       parseWarnings.push({
         delivery:del||a.text||"?",
