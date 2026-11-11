@@ -2737,6 +2737,9 @@ function excelSheetForDay(day){
   return `${d.toLocaleDateString("en-US",{month:"short"}).toUpperCase()} ${d.getDate()}`;
 }
 function nTruck(v){return String(v||"").replace(/\D/g,"")}
+// Final display override by truck number, including existing Excel rows.
+function boardDriverName(truck, driver){return nTruck(truck)==="7722" ? "Negusse" : String(driver??"");}
+function boardTrailerValue(truck, trailer){return nTruck(truck)==="7706" ? "GAY TRUCK" : trailer;}
 function nDriver(v){return String(v||"").trim().toUpperCase()}
 function driverKey(v){
   return String(v||"").toUpperCase().replace(/\bBACK\s+BY\b.*$/i,"").replace(/[^A-Z0-9 ]+/g," ").replace(/\s+/g," ").trim();
@@ -2904,8 +2907,8 @@ async function buildOfficePlan(){
       }
 
       existing.filter(x=>!used.has(x.row)).forEach(e=>merged.push({
-        city:e.city,truck:e.truck,driver:isZZ(e)?"ZZ":e.driver,
-        trailer:excelTrailerType(e.trailer,e.driver),f:e.f,g:e.g,sourceRow:e.row,isNew:false,previewStatus:"EXISTING"
+        city:e.city,truck:e.truck,driver:boardDriverName(e.truck,isZZ(e)?"ZZ":e.driver),
+        trailer:boardTrailerValue(e.truck,excelTrailerType(e.trailer,e.driver)),f:e.f,g:e.g,sourceRow:e.row,isNew:false,previewStatus:"EXISTING"
       }));
 
       merged.sort(cmpRec);
@@ -3026,8 +3029,8 @@ async function applyOfficePlan(plan){
         const srcRow=rec.sourceRow||neutralRow;
         const src=temp.getRangeByIndexes(tempBase-1+(srcRow-p.start),0,1,6);
         dest.copyFrom(src,Excel.RangeCopyType.formats);
-        dest.values=[[rec.city||"",rec.truck||"",rec.driver||"",
-          excelTrailerType(rec.trailer,rec.driver),rec.f||"",rec.g||""]];
+        dest.values=[[rec.city||"",rec.truck||"",boardDriverName(rec.truck,rec.driver),
+          boardTrailerValue(rec.truck,excelTrailerType(rec.trailer,rec.driver)),rec.f||"",rec.g||""]];
       }
 
       // Clear only contents of unused B:G rows before WEST. Do not touch formatting.
@@ -3077,7 +3080,7 @@ function renderExcelBoardPreview(plan){
       const s=rec.previewStatus||"EXISTING";
       const shownStatus=rec.cityMissing?"NEW · CITY MISSING":s;
       const cls=s==="NEW"?"ebp-new":s==="MATCHED"?"ebp-match":"ebp-old";
-      out+=`<tr class="${cls}"><td>${escHtml(rec.city)}</td><td>${escHtml(rec.truck)}</td><td>${escHtml(rec.driver)}</td><td>${escHtml(excelTrailerType(rec.trailer,rec.driver))}</td><td><span class="ebp-tag">${shownStatus}</span></td></tr>`;
+      out+=`<tr class="${cls}"><td>${escHtml(rec.city)}</td><td>${escHtml(rec.truck)}</td><td>${escHtml(boardDriverName(rec.truck,rec.driver))}</td><td>${escHtml(boardTrailerValue(rec.truck,excelTrailerType(rec.trailer,rec.driver)))}</td><td><span class="ebp-tag">${shownStatus}</span></td></tr>`;
     }
     out+=`</tbody></table>`;
     out+=`<div class="ebp-summary">Blue = already on this Excel day and kept · Green = new from PDF · Yellow = safely matched by truck or unique exact displayed name. First-name-only matching is disabled. Blank rows are the exact state separators that will be written.</div>`;
@@ -3180,7 +3183,8 @@ async function processFile(file){
     parsed={};
     rows.forEach((r,i)=>{
       r.dest=parseDestination(r.destination);
-      r.type=String(r.truck).trim()==="7706" ? "GAY TRUCK" : trailerType(r.trailer);
+      r.driver=boardDriverName(r.truck,r.driver);
+      r.type=boardTrailerValue(r.truck,trailerType(r.trailer));
       r.review=r.dest.review || r.type==="?";
       r.reviewReasons=[];
       if(r.dest.review){
@@ -3336,8 +3340,8 @@ function render(){
       if(r.review) { tr.className="review"; tr.title=r.reviewReasons.join(" · "); }
       tr.innerHTML=`<td contenteditable="true">${escapeHtml(r.dest.display)}</td>
                     <td contenteditable="true">${escapeHtml(r.truck)}</td>
-                    <td contenteditable="true">${escapeHtml(r.driver)}</td>
-                    <td contenteditable="true">${escapeHtml(r.type)}</td>
+                    <td contenteditable="true">${escapeHtml(boardDriverName(r.truck,r.driver))}</td>
+                    <td contenteditable="true">${escapeHtml(boardTrailerValue(r.truck,r.type))}</td>
                     <td class="delivery-day-cell"></td>`;
       const daySelect=document.createElement("select");
       daySelect.className="delivery-day-select";
