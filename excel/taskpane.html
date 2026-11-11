@@ -2821,13 +2821,17 @@ function rowFromValues(values,row){
     trailer:officeText(a[3]),f:officeText(a[4]),g:officeText(a[5])};
 }
 function findWestInValues(values){
+  // WEST is a boundary in the dispatch board (B:E), not in the notes
+  // columns F/G. Notes may mention WEST above the actual divider.
+  // If more than one boundary-like cell exists, the bottommost one wins.
+  let west=null;
   for(let i=0;i<values.length;i++){
-    for(let c=0;c<6;c++){
-      const t=officeText(values[i][c]).toUpperCase();
-      if(t.includes("WEST")&&t.includes("NOT A PRIORITY")) return i+1;
+    for(let c=0;c<4;c++){
+      const t=officeText((values[i]||[])[c]).toUpperCase().replace(/\s+/g," ");
+      if(/\bWEST\s*\/\s*NOT\s+A\s+PRIORITY\b/.test(t)) west=i+1;
     }
   }
-  return null;
+  return west;
 }
 
 async function buildOfficePlan(){
@@ -2915,7 +2919,7 @@ async function buildOfficePlan(){
       const outputRows=buildOutputRows(merged);
       const capacity=west-start;
       if(outputRows.length>capacity){
-        throw Error(`${q.sn}: needs ${outputRows.length} rows above WEST, but only ${capacity} are available.`);
+        throw Error(`${q.sn}: needs ${outputRows.length} rows, but only ${capacity} are available (WEST found at Excel row ${west}).`);
       }
       plans.push({day:q.day,sn:q.sn,start,oldWest:west,existing,merged,outputRows});
       T.existing+=existing.length; T.newCount+=newCount; T.matched+=matched; T.existingNotInPdf+=(existing.length-used.size);
